@@ -69,53 +69,45 @@ class Transaction:
     sender_public_key : bytes
         Public key of the sender of this transaction. Used to verify
         the signature on the transaction.
-    signature : Crypto.Signature.pkcs1_15
+    signature : bytes
         Digital signature created using the sender's secret key
-    verifier : Crypto.Signature.pkcs1_15
-        Used for verifying the signature on the Transaction.
-        Wraps the Crypto.Publickey.RSA object passed in the constructor so the
-        object only needs to hold the bytes of the sender's public key and not
-        the entire RSA key object.
 
     Methods
     -------
-    __init__(inputs, outputs, sender_private_key, sender_public_key)
-        Initializes the inputs and outputs of the transaction and generates
-        a new transaction id. Uses the sender_key_pair to get the sender's
-        secret key which is used to generate a signature and stores the
-        sender's public key.
-
+    __init__(inputs, outputs)
+        Initializes the inputs and outputs of the Transaction.
+        In order for this Transaction to be valid a user must call sign().
     get_txid() -> bytes
         Gets the SHA256 of the Transaction data.
-
+    sign(secret_key, public_key):
+        The sender provides their secret key and public key to sign the
+        Transaction.
     generate_txid() -> Crypto.Hash.SHA256
         Generate the Transaction ID for this transaction by hashing Transaction
         data. Only for use in the verify_signature method.
         Use get_txid to get the header as bytes.
-
     verify_signature() -> bool
         Verifies the stored signature against the generated Transaction ID to
-        ensure Transaction data has not been tampered with since initialization
+        ensure Transaction data has not been tampered with since signing.
 
     """
-    def __init__(self, inputs: List[TXInput], outputs: List[TXOutput],
-                 sender_private_key: bytes, sender_public_key: bytes):
-        # Assign inputs, outputs, sender_public_key
-        # Perform deep copies on inputs and outputs
+    def __init__(self, inputs: List[TXInput], outputs: List[TXOutput]):
+        # Assign inputs, outputs
         self.inputs = copy.deepcopy(inputs)
         self.outputs = copy.deepcopy(outputs)
-        self.sender_public_key = sender_public_key
 
-        # Create a digital signature for the transaction data
-        sender_secret_key_obj = RSA.importKey(sender_private_key)
-        sender_public_key_obj = RSA.importKey(sender_public_key)
-        self.verifier = pkcs1_15.new(sender_public_key_obj)
-
-        # Sign the transaction data with the sender's secret key
-        self.signature = pkcs1_15.new(sender_secret_key_obj).sign(self.generate_txid())
+        # These members are not properly initialized until sign() is  called
+        self.sender_public_key = bytes()
+        self.signature = None
 
     def get_txid(self) -> bytes:
         return self.generate_txid().digest()
+
+    def sign(self, secret_key: bytes, public_key: bytes):
+        self.sender_public_key = public_key
+        sk = RSA.importKey(secret_key)
+        pk = RSA.importKey(public_key)
+        self.signature = pkcs1_15.new(sk).sign(self.generate_txid())
 
     def generate_txid(self):
         tx_hash = SHA256.new()
@@ -127,9 +119,10 @@ class Transaction:
 
     def verify_signature(self) -> bool:
         try:
-            self.verifier.verify(self.generate_txid(), self.signature)
+            pk = RSA.importKey(self.sender_public_key)
+            pkcs1_15.new(pk).verify(self.generate_txid(), self.signature)
             return True
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, AttributeError):
             return False
 
 
