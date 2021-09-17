@@ -25,9 +25,11 @@ class Block:
 
     Methods
     -------
-    __init__(transactions: List[Transaction], previous_hash: bytes)
-        Initializes the Block with a List of Transactions and the hash
-        of the previous Block in the Blockchain
+    __init__(transactions: List[Transaction])
+        Initializes the Block with a List of Transactions, a timestamp,
+        and a nonce of zero.
+        Meaningful values for the nonce and hash come when the block is mined
+        and for previous_hash when added to the Blockchain.
     copy() -> Block
         Returns a copy of this block
     generate_hash() -> bytes
@@ -35,12 +37,12 @@ class Block:
         along with transaction data, previous hash, and a nonce confirming
         proof-of-work
     """
-    def __init__(self, transactions: List[Transaction], previous_hash: bytes):
+    def __init__(self, transactions: List[Transaction]):
         self.transactions = copy.deepcopy(transactions)
-        self.previous_hash = previous_hash
+        self.previous_hash = bytes()
         self.time_stamp = datetime.datetime.now()
         self.nonce = 0
-        self.hash = self.generate_hash()
+        self.hash = bytes()
 
     def copy(self) -> 'Block':
         return copy.deepcopy(self)
