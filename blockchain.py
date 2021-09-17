@@ -76,7 +76,8 @@ class Blockchain:
     copy() -> Blockchain
         Returns a copy of this Blockchain
     append_block(block)
-        Appends a copy of the argument block to the Blockchain
+        Appends a copy of the argument block to the Blockchain. Sets the
+        Block's previous hash to the last Block in the chain.
     """
     def __init__(self):
         # Genesis Block has no Transactions, previous_hash of all 0s
@@ -88,4 +89,5 @@ class Blockchain:
         return copy.deepcopy(self)
 
     def append_block(self, block: Block):
+        block.previous_hash = self.blocks[-1].generate_hash()
         self.blocks.append(block.copy())
