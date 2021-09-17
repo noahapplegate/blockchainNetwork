@@ -1,6 +1,8 @@
 from Crypto.Hash import SHA256
 from Crypto.Signature import pkcs1_15
 from Crypto.PublicKey import RSA
+from typing import List
+import copy
 
 
 class TXOutput:
@@ -21,7 +23,7 @@ class TXOutput:
         Initializes the TXOutput with the amount being sent and the
         public key of the recipient
     """
-    def __init__(self, amount, owner):
+    def __init__(self, amount: int, owner: bytes):
         self.amount = amount
         self.owner = owner
 
@@ -43,7 +45,7 @@ class TXInput:
         Initializes the TXInput with the previous Transaction header and
         the index of the output being spent within that Transaction
     """
-    def __init__(self, prev_tx, output_ind):
+    def __init__(self, prev_tx: bytes, output_ind: int):
         self.prev_tx = prev_tx
         self.output_ind = output_ind
 
@@ -96,11 +98,12 @@ class Transaction:
         ensure Transaction data has not been tampered with since initialization
 
     """
-    def __init__(self, inputs, outputs, sender_private_key, sender_public_key):
+    def __init__(self, inputs: List[TXInput], outputs: List[TXOutput],
+                 sender_private_key: bytes, sender_public_key: bytes):
         # Assign inputs, outputs, sender_public_key
         # Perform deep copies on inputs and outputs
-        self.inputs = [TXInput(tx_in.prev_tx, tx_in.output_ind) for tx_in in inputs]
-        self.outputs = [TXOutput(tx_out.amount, tx_out.owner) for tx_out in outputs]
+        self.inputs = copy.deepcopy(inputs)
+        self.outputs = copy.deepcopy(outputs)
         self.sender_public_key = sender_public_key
 
         # Create a digital signature for the transaction data
