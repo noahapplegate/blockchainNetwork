@@ -98,18 +98,20 @@ class Transaction:
     """
     def __init__(self, inputs, outputs, sender_private_key, sender_public_key):
         # Assign inputs, outputs, sender_public_key
-        self.inputs = inputs
-        self.outputs = outputs
+        # Perform deep copies on inputs and outputs
+        self.inputs = [TXInput(tx_in.prev_tx, tx_in.output_ind) for tx_in in inputs]
+        self.outputs = [TXOutput(tx_out.amount, tx_out.owner) for tx_out in outputs]
         self.sender_public_key = sender_public_key
 
         # Create a digital signature for the transaction data
-        sender_key_pair = RSA.importKey(sender_private_key)
-        self.verifier = pkcs1_15.new(sender_key_pair.publickey())
+        sender_secret_key_obj = RSA.importKey(sender_private_key)
+        sender_public_key_obj = RSA.importKey(sender_public_key)
+        self.verifier = pkcs1_15.new(sender_public_key_obj)
 
         # Sign the transaction data with the sender's secret key
-        self.signature = pkcs1_15.new(sender_key_pair).sign(self.generate_txid())
+        self.signature = pkcs1_15.new(sender_secret_key_obj).sign(self.generate_txid())
 
-    def get_txid(self):
+    def get_txid(self) -> bytes:
         return self.generate_txid().digest()
 
     def generate_txid(self):
