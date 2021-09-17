@@ -1,5 +1,6 @@
 from Crypto.Hash import SHA256
 from Crypto.Signature import pkcs1_15
+from Crypto.PublicKey import RSA
 
 
 class TXOutput:
@@ -76,7 +77,7 @@ class Transaction:
 
     Methods
     -------
-    __init__(inputs, outputs, sender_key_pair)
+    __init__(inputs, outputs, sender_private_key, sender_public_key)
         Initializes the inputs and outputs of the transaction and generates
         a new transaction id. Uses the sender_key_pair to get the sender's
         secret key which is used to generate a signature and stores the
@@ -95,10 +96,14 @@ class Transaction:
         ensure Transaction data has not been tampered with since initialization
 
     """
-    def __init__(self, inputs, outputs, sender_key_pair):
+    def __init__(self, inputs, outputs, sender_private_key, sender_public_key):
+        # Assign inputs, outputs, sender_public_key
         self.inputs = inputs
         self.outputs = outputs
-        self.sender_public_key = sender_key_pair.publickey().export_key()
+        self.sender_public_key = sender_public_key
+
+        # Create a digital signature for the transaction data
+        sender_key_pair = RSA.importKey(sender_private_key)
         self.verifier = pkcs1_15.new(sender_key_pair.publickey())
 
         # Sign the transaction data with the sender's secret key
