@@ -1,6 +1,8 @@
 import datetime
 from Crypto.Hash import SHA256
 from transaction import Transaction
+from typing import List
+import copy
 
 
 class Block:
@@ -23,49 +25,36 @@ class Block:
 
     Methods
     -------
-    __init__(transactions, previous_hash)
+    __init__(transactions: List[Transaction], previous_hash: bytes)
         Initializes the Block with a List of Transactions and the hash
         of the previous Block in the Blockchain
-    __init__(block)
-        Copy constructor
+    copy() -> Block
+        Returns a copy of this block
     generate_hash() -> bytes
         Creates a unique Block header by hashing the time the block was created
         along with transaction data, previous hash, and a nonce confirming
         proof-of-work
     """
-    def __init__(self, transactions, previous_hash):
-        # Deep copy of transactions
-        self.transactions = []
-        for tx in transactions:
-            tx_copy = \
-                Transaction(tx.inputs, tx.outputs, tx.sender_private_key, tx.sender_public_key)
-            self.transactions.append(tx_copy)
-
+    def __init__(self, transactions: List[Transaction], previous_hash: bytes):
+        self.transactions = copy.deepcopy(transactions)
         self.previous_hash = previous_hash
         self.time_stamp = datetime.datetime.now()
         self.nonce = 0
         self.hash = self.generate_hash()
 
-    def __init__(self, block):
-        # Deep copy of transactions
-        self.transactions = []
-        for tx in block.transactions:
-            tx_copy = \
-                Transaction(tx.inputs, tx.outputs, tx.sender_private_key, tx.sender_public_key)
-            self.transactions.append(tx_copy)
-
-        self.previous_hash = block.previous_hash
-        self.time_stamp = block.time_stamp
-        self.nonce = block.nonce
-        self.hash = block.hash
+    def copy(self) -> 'Block':
+        return copy.deepcopy(self)
 
     def generate_hash(self) -> bytes:
         block_hash = SHA256.new()
+
+        # Hash timestamp, Transaction data, previous hash, and nonce
         block_hash.update(str(self.time_stamp).encode())
         for tx in self.transactions:
             block_hash.update(tx.get_txid())
         block_hash.update(self.previous_hash)
         block_hash.update(str(self.nonce).encode())
+
         return block_hash.digest()
 
 
@@ -81,22 +70,20 @@ class Blockchain:
     Methods
     -------
     __init__()
-        Initializes the Blockchain with the genesis block
-        No Transactions in the block, previous header of 0
-    __init__(existing_chain)
-        Initializes the Blockchain with the contents of the existing_chain
+        Creates a new Blockchain containing only the Genesis Block
+    copy() -> Blockchain
+        Returns a copy of this Blockchain
     append_block(block)
-        Appends a new Block to the end of the chain
+        Appends a copy of the argument block to the Blockchain
     """
     def __init__(self):
-        # Add the genesis block
-        self.blocks = [Block([], 0)]
+        # Genesis Block has no Transactions, previous_hash of all 0s
+        zeros = '0' * 64
+        init_prev_header = bytes.fromhex(zeros)
+        self.blocks = [Block([], init_prev_header)]
 
-    def __init__(self, existing_chain):
-        # Deep copy of blocks
-        self.blocks = []
-        for block in existing_chain:
-            self.blocks.append(Block(block))
+    def copy(self):
+        return copy.deepcopy(self)
 
-    def append_block(self, block):
-        self.blocks.append(block)
+    def append_block(self, block: Block):
+        self.blocks.append(block.copy())
