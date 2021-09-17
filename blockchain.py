@@ -81,9 +81,11 @@ class Blockchain:
     """
     def __init__(self):
         # Genesis Block has no Transactions, previous_hash of all 0s
+        genesis_block = Block([])
         zeros = '0' * 64
-        init_prev_header = bytes.fromhex(zeros)
-        self.blocks = [Block([], init_prev_header)]
+        zero_header = bytes.fromhex(zeros)
+        genesis_block.previous_hash = zero_header
+        self.blocks = [genesis_block]
 
     def copy(self):
         return copy.deepcopy(self)
