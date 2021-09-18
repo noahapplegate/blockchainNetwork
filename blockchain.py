@@ -19,6 +19,9 @@ class Block:
         Hash of the previous Block in the Blockchain
     nonce : int
         Guessed by miners creating the Block's proof-of-work
+    difficulty : int
+        Number of zero hex digits that must appear at the beginning of the
+        block header to be considered a valid proof of work
     hash : bytes
         Unique hash resulting from hashing timestamp, transaction data,
         and nonce
@@ -36,12 +39,17 @@ class Block:
         Creates a unique Block header by hashing the time the block was created
         along with transaction data, previous hash, and a nonce confirming
         proof-of-work
+    has_proof_of_work() -> bool
+        Checks the Block's hash to see if the number of zeros at the beginning
+        of the hash is greater than or equal to the difficulty score
+
     """
-    def __init__(self, transactions: List[Transaction]):
+    def __init__(self, transactions: List[Transaction], difficulty: int):
         self.transactions = copy.deepcopy(transactions)
         self.previous_hash = bytes()
         self.time_stamp = datetime.datetime.now()
         self.nonce = 0
+        self.difficulty = difficulty
         self.hash = bytes()
 
     def copy(self) -> 'Block':
@@ -58,6 +66,11 @@ class Block:
         block_hash.update(str(self.nonce).encode())
 
         return block_hash.digest()
+
+    def has_proof_of_work(self):
+        # Get relevant digits in Block hash as a string
+        first_n = self.generate_hash().hex()[:self.difficulty]
+        return first_n == '0' * self.difficulty
 
 
 class Blockchain:
