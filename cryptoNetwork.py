@@ -163,6 +163,11 @@ class FullNode:
         Verifies transactions and proof-of-work on a new Block confirmed by
         miners and adds it to the node's blockchain. Updates the UTXO set.
     """
+    def __init__(self):
+        self.node_blockchain = Blockchain()
+        self.unvalidated_txs = []
+        self.validated_txs = []
+        self.utxo_set = dict()
 
 
 class MinerNode:
