@@ -3,6 +3,7 @@ from transaction import Transaction, TXInput, TXOutput
 from Crypto.PublicKey import RSA
 from typing import List, Deque
 from collections import deque
+import copy
 
 
 class Wallet:
@@ -145,9 +146,8 @@ class FullNode:
         List of Transactions that have not yet been validated
     validated_txs : List[Transaction]
         List of validated Transactions to be broadcast to miners
-    utxo_set : Dict[bytes, bytes]
-        Maps Transaction IDs and output indices of UTXOs to the public key that
-        owns them
+    utxo_set : Dict[bytes, TXOutput]
+        Maps Transaction IDs and output indices of UTXOs to a TXOutput
 
     Methods
     -------
@@ -168,6 +168,33 @@ class FullNode:
         self.unvalidated_txs = []
         self.validated_txs = []
         self.utxo_set = dict()
+
+    def copy(self):
+        return copy.deepcopy(self)
+
+    def validate_tx(self, tx: Transaction):
+        # Verify the TX data has a valid signature
+        if not tx.verify_signature():
+            return False
+
+        # Check all inputs used in the TX are in the UTXO set and that they
+        # are owned by the sender of the TX
+        total_in = 0
+        for txin in tx.inputs:
+            input_key = txin.prev_tx + str(txin.output_ind).encode()
+            if input_key not in self.utxo_set or self.utxo_set[input_key].owner != tx.sender_public_key:
+                return False
+            else:
+                total_in += self.utxo_set[input_key].amount
+
+        # Check that input amount is >= the output amount
+        total_out = 0
+        for txout in tx.outputs:
+            total_out += txout.amount
+        if total_in < total_out:
+            return False
+
+        return True
 
 
 class MinerNode:
