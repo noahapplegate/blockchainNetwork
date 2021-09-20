@@ -22,9 +22,6 @@ class Block:
     difficulty : int
         Number of zero hex digits that must appear at the beginning of the
         block header to be considered a valid proof of work
-    hash : bytes
-        Unique hash resulting from hashing timestamp, transaction data,
-        and nonce
 
     Methods
     -------
@@ -50,7 +47,6 @@ class Block:
         self.time_stamp = datetime.datetime.now()
         self.nonce = 0
         self.difficulty = difficulty
-        self.hash = bytes()
 
     def copy(self) -> 'Block':
         return copy.deepcopy(self)
