@@ -129,6 +129,9 @@ class Wallet:
                         self.wallet_utxo_set.append((tx.get_txid(), k, txout.amount))
                         self.balance += txout.amount
 
+            # Move the next block in the chain
+            i -= 1
+
         # We have scanned all Blocks not previously seen in the chain. No more to update
         self.last_block_queried = updated_chain[-1].generate_hash()
 
@@ -148,6 +151,9 @@ class FullNode:
         List of validated Transactions to be broadcast to miners
     utxo_set : Dict[bytes, TXOutput]
         Maps Transaction IDs and output indices of UTXOs to a TXOutput
+    difficulty : int
+        Number of zeros that must start the header of a Block
+        to be considered valid
 
     Methods
     -------
@@ -156,23 +162,26 @@ class FullNode:
     copy(node: FullNode)
         Used to initialize subsequent FullNodes and gives them copies
         of an existing FullNode's Blockchain and UTXO set
-    validate_tx(tx: Transaction)
+    validate_tx(tx: Transaction) -> bool
         Determines if a Transaction is valid. Checks for double spends,
         over spends, invalid signatures, invalid Transaction data.
-    listen_for_blocks(block: Block):
+    validate_block(block: Block) -> bool
+        Validates the Block's proof-of-work and Transactions
+    listen_for_blocks(block: Block)
         Verifies transactions and proof-of-work on a new Block confirmed by
         miners and adds it to the node's blockchain. Updates the UTXO set.
     """
-    def __init__(self):
+    def __init__(self, difficulty):
         self.node_blockchain = Blockchain()
         self.unvalidated_txs = []
         self.validated_txs = []
         self.utxo_set = dict()
+        self.difficulty = difficulty
 
     def copy(self):
         return copy.deepcopy(self)
 
-    def validate_tx(self, tx: Transaction):
+    def validate_tx(self, tx: Transaction) -> bool:
         # Verify the TX data has a valid signature
         if not tx.verify_signature():
             return False
@@ -195,6 +204,37 @@ class FullNode:
             return False
 
         return True
+
+    def validate_block(self, block: Block) -> bool:
+        # Verify the Block's proof-of-work
+        if not block.has_proof_of_work():
+            return False
+        # Validate all TXs in the block
+        for tx in block.transactions:
+            if not self.validate_tx(tx):
+                return False
+
+        return True
+
+    def listen_for_blocks(self, block: Block):
+        # If the Block is invalid, it is not accepted by the Blockchain
+        if not self.validate_block(block):
+            return
+
+        # Block is valid, add to Block chain
+        self.node_blockchain.append_block(block)
+
+        # Inputs used in Block TXs are no longer UTXOs
+        # Outputs in Block are now UTXOs
+        for tx in block.transactions:
+            for txin in tx.inputs:
+                utxo_key = txin.prev_tx + str(txin.output_ind).encode()
+                del self.utxo_set[utxo_key]
+
+            out_ind = 0
+            for txout in tx.outputs:
+                utxo_key = tx.get_txid + str(out_ind).encode()
+                self.utxo_set[utxo_key] = TXOutput(txout.amount, txout.owner)
 
 
 class MinerNode:
