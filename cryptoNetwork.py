@@ -148,12 +148,10 @@ class FullNode:
     unvalidated_txs : List[Transaction]
         List of Transactions that have not yet been validated
     validated_txs : List[Transaction]
-        List of validated Transactions to be broadcast to miners
+        List of validated Transactions to be broadcast to MinerNodes
     utxo_set : Dict[bytes, TXOutput]
         Maps Transaction IDs and output indices of UTXOs to a TXOutput
-    difficulty : int
-        Number of zeros that must start the header of a Block
-        to be considered valid
+
 
     Methods
     -------
@@ -248,6 +246,13 @@ class MinerNode:
     miner_public_key : bytes
         Miner's public key to be used for outputs of coinbase
         Transactions and fees
+    new_blocks : List[Block]
+        List of Blocks created by the miner to be broadcast back to FullNodes
+        for confirmation
+    difficulty : int
+        Number of zeros that must start the header of a Block
+        to be considered valid
+
 
     Methods
     -------
@@ -258,9 +263,28 @@ class MinerNode:
         to await confirmation
     create_new_block()
         Collect transactions from the mempool and add them to a new Block
-    proof_of_work(block)
-        Perform a proof-of-work for the specified block
     """
+    difficulty = 2
+
+    def __init__(self, miner_public_key: bytes):
+        self.miner_public_key = miner_public_key
+        self.mempool = []
+        self.new_blocks = []
+
+    def listen_for_transactions(self, transactions: List[Transaction]):
+        # Add the new Transactions to the mempool
+        self.mempool.extend(transactions)
+
+    def create_new_block(self):
+        # Add all Transactions from the mempool to the new Block
+        new_block = Block(self.mempool, MinerNode.difficulty)
+
+        # Generate a valid proof of work for the new Block
+        while not new_block.has_proof_of_work():
+            new_block.nonce += 1
+
+        # Add the Block to list of Blocks to be broadcast
+        self.new_blocks.append(new_block)
 
 
 class Network:
