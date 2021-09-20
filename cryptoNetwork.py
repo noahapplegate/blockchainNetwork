@@ -169,12 +169,11 @@ class FullNode:
         Verifies transactions and proof-of-work new Blocks confirmed by
         miners and adds it to the node's blockchain. Updates the UTXO set.
     """
-    def __init__(self, difficulty):
+    def __init__(self):
         self.node_blockchain = Blockchain()
         self.unvalidated_txs = []
         self.validated_txs = []
         self.utxo_set = dict()
-        self.difficulty = difficulty
 
     def copy(self):
         return copy.deepcopy(self)
@@ -267,8 +266,8 @@ class MinerNode:
     """
     difficulty = 2
 
-    def __init__(self, miner_public_key: bytes):
-        self.miner_public_key = miner_public_key
+    def __init__(self):
+        self.miner_public_key = RSA.generate(2048).publickey().export_key()
         self.mempool = []
         self.new_blocks = []
 
@@ -305,10 +304,10 @@ class Network:
     Methods
     -------
     __init__()
-        Initialize new Network with no nodes
-    add_full_node(node: FullNode)
+        Initialize new Network with one FullNode and one MinerNode
+    add_full_node()
         Creates a new basic node on the network
-    add_miner_node(node: MinerNode)
+    add_miner_node()
         Creates a new miner node on the network
     transaction_broadcast()
         Broadcasts verified transactions from FullNodes to MinerNodes
@@ -316,14 +315,27 @@ class Network:
         Broadcasts blocks from MinerNodes to FullNodes
     """
     def __init__(self):
-        self.full_nodes = []
-        self.miner_nodes = []
+        self.full_nodes = [FullNode()]
+        self.miner_nodes = [MinerNode()]
 
-    def add_full_node(self, node: FullNode):
-        self.full_nodes.append(node)
+    def add_full_node(self):
+        # New FullNodes receive copies of the currently accepted
+        # Blockchain and UTXO set
+        new_node_blockchain = self.full_nodes[0].node_blockchain.copy()
+        new_node_utxo_set = copy.deepcopy(self.full_nodes[0].utxo_set)
 
-    def add_miner_node(self, node: MinerNode):
-        self.miner_nodes.append(node)
+        new_node = FullNode()
+        new_node.node_blockchain = new_node_blockchain
+        new_node.utxo_set = new_node_utxo_set
+        self.full_nodes.append(new_node)
+
+    def add_miner_node(self):
+        # New MinerNodes receive a mempool copy
+        new_node_mempool = copy.deepcopy(self.miner_nodes[0].mempool)
+
+        new_node = MinerNode()
+        new_node.mempool = new_node_mempool
+        self.miner_nodes.append(new_node)
 
     def transaction_broadcast(self):
         # For each FullNode, send the node's validated TXs to every
