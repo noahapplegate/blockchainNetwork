@@ -165,8 +165,8 @@ class FullNode:
         over spends, invalid signatures, invalid Transaction data.
     validate_block(block: Block) -> bool
         Validates the Block's proof-of-work and Transactions
-    listen_for_blocks(block: Block)
-        Verifies transactions and proof-of-work on a new Block confirmed by
+    listen_for_blocks(mined_blocks: List[Block])
+        Verifies transactions and proof-of-work new Blocks confirmed by
         miners and adds it to the node's blockchain. Updates the UTXO set.
     """
     def __init__(self, difficulty):
@@ -214,25 +214,26 @@ class FullNode:
 
         return True
 
-    def listen_for_blocks(self, block: Block):
-        # If the Block is invalid, it is not accepted by the Blockchain
-        if not self.validate_block(block):
-            return
+    def listen_for_blocks(self, mined_blocks: List[Block]):
+        for block in mined_blocks:
+            # If the Block is invalid, it is not accepted by the Blockchain
+            if not self.validate_block(block):
+                return
 
-        # Block is valid, add to Block chain
-        self.node_blockchain.append_block(block)
+            # Block is valid, add to Block chain
+            self.node_blockchain.append_block(block)
 
-        # Inputs used in Block TXs are no longer UTXOs
-        # Outputs in Block are now UTXOs
-        for tx in block.transactions:
-            for txin in tx.inputs:
-                utxo_key = txin.prev_tx + str(txin.output_ind).encode()
-                del self.utxo_set[utxo_key]
+            # Inputs used in Block TXs are no longer UTXOs
+            # Outputs in Block are now UTXOs
+            for tx in block.transactions:
+                for txin in tx.inputs:
+                    utxo_key = txin.prev_tx + str(txin.output_ind).encode()
+                    del self.utxo_set[utxo_key]
 
-            out_ind = 0
-            for txout in tx.outputs:
-                utxo_key = tx.get_txid + str(out_ind).encode()
-                self.utxo_set[utxo_key] = TXOutput(txout.amount, txout.owner)
+                out_ind = 0
+                for txout in tx.outputs:
+                    utxo_key = tx.get_txid + str(out_ind).encode()
+                    self.utxo_set[utxo_key] = TXOutput(txout.amount, txout.owner)
 
 
 class MinerNode:
@@ -249,7 +250,7 @@ class MinerNode:
     new_blocks : List[Block]
         List of Blocks created by the miner to be broadcast back to FullNodes
         for confirmation
-    difficulty : int
+    MinerNode.difficulty : int
         Number of zeros that must start the header of a Block
         to be considered valid
 
@@ -294,7 +295,7 @@ class Network:
     ...
     Attributes
     ----------
-    basic_nodes : List[BasicNode]
+    full_nodes : List[FullNode]
         Nodes participating on the network by maintaining the Blockchain
         and creating transactions
     miner_nodes : List[MinerNode]
@@ -303,22 +304,43 @@ class Network:
 
     Methods
     -------
-    __init__(prev_tx, output_ind)
-        Initializes the TXInput with the previous Transaction header and
-        the index of the output being spent within that Transaction
-    add_basic_node()
+    __init__()
+        Initialize new Network with no nodes
+    add_full_node(node: FullNode)
         Creates a new basic node on the network
-    remove_basic_node()
-        Removes a basic node from the network
-    add_miner()
+    add_miner_node(node: MinerNode)
         Creates a new miner node on the network
-    remove_miner()
-        Removes a miner node from the network
     transaction_broadcast()
         Broadcasts verified transactions from FullNodes to MinerNodes
     block_broadcast()
         Broadcasts blocks from MinerNodes to FullNodes
     """
+    def __init__(self):
+        self.full_nodes = []
+        self.miner_nodes = []
 
+    def add_full_node(self, node: FullNode):
+        self.full_nodes.append(node)
 
+    def add_miner_node(self, node: MinerNode):
+        self.miner_nodes.append(node)
 
+    def transaction_broadcast(self):
+        # For each FullNode, send the node's validated TXs to every
+        # MinerNode in the Network to be added to a new Block
+        for full_node in self.full_nodes:
+            for miner_node in self.miner_nodes:
+                miner_node.listen_for_transactions(full_node.validated_txs)
+
+            # TXs have been broadcast, reset the list of validated TXs
+            full_node.validated_tx = []
+
+    def block_broadcast(self):
+        # For each MinerNode, send the node's new Blocks to every
+        # FullNode in the Network for confirmation
+        for miner_node in self.miner_nodes:
+            for full_node in self.full_nodes:
+                full_node.listen_for_blocks(miner_node.new_blocks)
+
+            # This miner's new Blocks have been broadcast, reset list of new blocks
+            miner_node.new_blocks = []
