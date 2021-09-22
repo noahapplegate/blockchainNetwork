@@ -89,7 +89,7 @@ class Wallet:
         # Create a Transaction, sign it, and send it to the connected FullNode
         new_tx = Transaction(inputs, outputs)
         new_tx.sign(self.secret_key, self.public_key)
-        self.node.unvalidated_txs.append(new_tx)
+        self.node.local_txs.append(new_tx)
 
     def update_wallet(self):
         updated_chain = self.node.node_blockchain.blocks
@@ -140,7 +140,7 @@ class FullNode:
     """
     def __init__(self):
         self.node_blockchain = Blockchain()
-        self.unvalidated_txs = []
+        self.local_txs = []
         self.mempool = []
         self.utxo_set = dict()
 
@@ -179,7 +179,7 @@ class FullNode:
 
         return True
 
-    def listen_for_transactions(self, transactions: List[Transaction], block_height: int):
+    def listen_for_transactions(self, transactions: List[Transaction]):
         # Add valid transactions to the mempool
         for tx in transactions:
             if self.validate_tx(tx):
@@ -188,7 +188,10 @@ class FullNode:
     def update_utxo_set(self, new_block: Block):
         # Inputs used in Block TXs are no longer UTXOs
         # Outputs in Block are now UTXOs
-        for tx in new_block.transactions:
+        # Ignore the coinbase transaction
+        for i in range(len(new_block.transactions)-1):
+            tx = new_block.transactions[i]
+            # Ignore coinbase input
             for txin in tx.inputs:
                 utxo_key = txin.prev_tx + str(txin.output_ind).encode()
                 del self.utxo_set[utxo_key]
@@ -199,6 +202,12 @@ class FullNode:
                 self.utxo_set[utxo_key] = TXOutput(txout.amount, txout.owner)
                 out_ind += 1
 
+        # Add Coinbase output to UTXO set
+        cb_tx = new_block.transactions[-1]
+        cb_out = cb_tx.outputs[0]
+        cb_key = cb_tx.get_txid() + str(0).encode()
+        self.utxo_set[cb_key] = TXOutput(cb_out.amount, cb_out.owner)
+
     def update_mempool(self, new_block: Block):
         # If a TX in this node's mempool is in the new Block, remove it
         for new_tx in new_block.transactions:
@@ -207,8 +216,9 @@ class FullNode:
                     self.mempool.remove(tx)
 
     def validate_block(self, new_block: Block):
-        # Validate TXs included in the new block
-        for tx in new_block.transactions:
+        # Validate TXs included in the new block (ignore the coinbase TX)
+        for i in range(len(new_block.transactions)-1):
+            tx = new_block.transactions[i]
             if not self.validate_tx(tx):
                 return False
 
@@ -252,17 +262,13 @@ class MinerNode(FullNode):
     difficulty = 2
 
     def __init__(self):
-        super(MinerNode).__init__()
+        FullNode.__init__(self)
         self.miner_public_key = bytes()
-        self.new_blocks = []
+        self.new_block = None
 
     def create_new_block(self):
         # Add all Transactions from the mempool to the new Block
         new_block = Block(self.mempool, MinerNode.difficulty)
-
-        # Generate a valid proof of work for the new Block
-        while not new_block.has_proof_of_work():
-            new_block.nonce += 1
 
         # Collect fees and block reward as a new TX
         total_in = 0
@@ -281,8 +287,15 @@ class MinerNode(FullNode):
         coinbase_tx = Transaction([coinbase_in], [coinbase_out])
         new_block.transactions.append(coinbase_tx)
 
-        # Add the Block to list of Blocks to be broadcast
-        self.new_blocks.append(new_block)
+        # Set previous Block
+        new_block.previous_hash = self.node_blockchain.blocks[-1].generate_hash()
+
+        # Generate a valid proof of work for the new Block
+        while not new_block.has_proof_of_work():
+            new_block.nonce += 1
+
+        # Prepare to broadcast the block
+        self.new_block = new_block
 
 
 class Network:
@@ -327,27 +340,26 @@ class Network:
         new_node = MinerNode()
         # If there are already nodes in the network, copy their data
         if len(self.miner_nodes) > 0:
-            new_node.block_height = self.miner_nodes[0].block_height
             new_node.mempool = copy.deepcopy(self.miner_nodes[0].mempool)
             new_node.utxo_set = copy.deepcopy(self.miner_nodes[0].utxo_set)
         self.miner_nodes.append(new_node)
 
-    def transaction_broadcast(self):
+    def transaction_broadcast(self, broadcaster):
         # For each FullNode, send the node's unvalidated TXs to every
         # MinerNode in the Network to be added to a new Block
         for full_node in self.full_nodes:
-            for miner_node in self.miner_nodes:
-                miner_node.listen_for_transactions(full_node.unvalidated_txs, len(full_node.node_blockchain.blocks))
+            full_node.listen_for_transactions(broadcaster.local_txs)
+        for miner_node in self.miner_nodes:
+            miner_node.listen_for_transactions(broadcaster.local_txs)
 
-            # TXs have been broadcast, reset the list of validated TXs
-            full_node.unvalidated_txs = []
+        broadcaster.local_txs = []
 
-    def block_broadcast(self):
+    def block_broadcast(self, broadcaster):
         # For each MinerNode, send the node's new Blocks to every
         # FullNode in the Network for confirmation
+        for full_node in self.full_nodes:
+            full_node.listen_for_blocks(broadcaster.new_block)
         for miner_node in self.miner_nodes:
-            for full_node in self.full_nodes:
-                full_node.listen_for_blocks(miner_node.new_blocks)
+            miner_node.listen_for_blocks(broadcaster.new_block)
 
-            # This miner's new Blocks have been broadcast, reset list of new blocks
-            miner_node.new_blocks = []
+        broadcaster.new_block = None
