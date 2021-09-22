@@ -51,7 +51,8 @@ class Wallet:
         self.balance = 0
         self.node = node
         self.wallet_utxo_set = deque()
-        self.last_block_queried = node.node_blockchain.blocks[-1].generate_hash()
+        self.last_block_queried = node.node_blockchain.blocks[0].generate_hash()
+        self.update_wallet()
 
     def send(self, outputs: List[TXOutput], fee: int):
         # Get the total amount being sent
@@ -62,53 +63,28 @@ class Wallet:
         # Make sure we are not overdrawing and update the balance
         if total_out > self.balance:
             return
-        else:
-            self.balance -= total_out
 
-        # Add temporary dummy outputs to account for the fee and accessing past end of list
-        outputs.append(TXOutput(fee, bytes()))
-        outputs.append(TXOutput(0, bytes()))
-
-        # Get UTXOs to fulfill the requested amount to send
-        out_it = iter(outputs)
-        cur_out = next(out_it)
-        cur_out_amt = cur_out.amount
         inputs = []
-        remainders = []
-        while total_out > 0:
-            # Get the next UTXO, update the total output remaining to satisfy
+        total_in = 0
+        while total_in < total_out:
+            # Get next UTXO owned by this Wallet
             cur_utxo = self.wallet_utxo_set.popleft()
-            utxo_amt = cur_utxo[2]
-
-            # Create a new input using the current UTXO and add it to list of inputs
             txid = cur_utxo[0]
             output_ind = cur_utxo[1]
-            new_input = TXInput(txid, output_ind)
-            inputs.append(new_input)
+            utxo_amt = cur_utxo[2]
 
-            if utxo_amt < cur_out_amt:
-                # UTXO does not have enough coin to satisfy this output
-                # We have satisfied utxo_amt of the cur_out_amt remaining
-                cur_out_amt -= utxo_amt
-                total_out -= utxo_amt
-            else:
-                # UTXO can be used to fully satisfy this output
-                if utxo_amt > cur_out_amt:
-                    # UTXO has more coin that required. Use it fully and send
-                    # the remainder back to ourselves
-                    utxo_remainder = utxo_amt - cur_out_amt
-                    remainder_output = TXOutput(utxo_remainder, self.public_key)
-                    remainders.append(remainder_output)
+            # Create a new TXInput and add it to list of inputs used in this TX
+            new_in = TXInput(txid, output_ind)
+            inputs.append(new_in)
 
-                total_out -= cur_out_amt
-                # This output is satisfied, get the next one
-                cur_out = next(out_it)
-                cur_out_amt = cur_out.amount
+            # Update the total amount used in inputs so far
+            total_in += utxo_amt
 
-        # Remove dummy outputs and append remainders
-        outputs.pop()
-        outputs.pop()
-        outputs.extend(remainders)
+        self.balance -= total_in
+        # Calculate change and send it to this Wallet
+        if total_in > total_out:
+            change = TXOutput(total_in - total_out, self.public_key)
+            outputs.append(change)
 
         # Create a Transaction, sign it, and send it to the connected FullNode
         new_tx = Transaction(inputs, outputs)
@@ -213,11 +189,13 @@ class MinerNode:
         self.mempool = []
         self.new_blocks = []
         self.utxo_set = dict()
+        self.block_height = 0
 
     def copy(self):
         return copy.deepcopy(self)
 
-    def listen_for_transactions(self, transactions: List[Transaction]):
+    def listen_for_transactions(self, transactions: List[Transaction], block_height: int):
+        self.block_height = block_height
         # Add valid transactions to the mempool
         for tx in transactions:
             if self.validate_tx(tx):
@@ -249,10 +227,10 @@ class MinerNode:
                 out_ind += 1
 
         # Collect fees and block reward as a new TX
-        total_fees = total_out - total_in
+        total_fees = total_in - total_out
         block_reward = 10
         coinbase_out = TXOutput(total_fees + block_reward, self.miner_public_key)
-        coinbase_tx = Transaction([], [coinbase_out])
+        coinbase_tx = Transaction([TXInput(str(self.block_height).encode(), 0)], [coinbase_out])
         new_block.transactions.append(coinbase_tx)
 
         # Add coinbase output to UTXO set
@@ -329,15 +307,17 @@ class Network:
         new_node = MinerNode()
         # If there are already nodes in the network, copy their data
         if len(self.miner_nodes) > 0:
-            new_node = self.miner_nodes[0].copy()
-        self.full_nodes.append(new_node)
+            new_node.block_height = self.miner_nodes[0].block_height
+            new_node.mempool = copy.deepcopy(self.miner_nodes[0].mempool)
+            new_node.utxo_set = copy.deepcopy(self.miner_nodes[0].utxo_set)
+        self.miner_nodes.append(new_node)
 
     def transaction_broadcast(self):
         # For each FullNode, send the node's unvalidated TXs to every
         # MinerNode in the Network to be added to a new Block
         for full_node in self.full_nodes:
             for miner_node in self.miner_nodes:
-                miner_node.listen_for_transactions(full_node.unvalidated_txs)
+                miner_node.listen_for_transactions(full_node.unvalidated_txs, len(full_node.node_blockchain.blocks))
 
             # TXs have been broadcast, reset the list of validated TXs
             full_node.unvalidated_txs = []
