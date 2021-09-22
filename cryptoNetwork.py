@@ -4,6 +4,7 @@ from Crypto.PublicKey import RSA
 from typing import List, Deque
 from collections import deque
 import copy
+from random import choice
 
 
 class Wallet:
@@ -32,7 +33,7 @@ class Wallet:
 
     Methods
     -------
-    __init__(node: FullNode)
+    __init__()
         Generates a secret key and public key for this Wallet. Initializes
         the balance, UTXO set, and connects the Wallet to the given FullNode.
     send(outputs: List[TXOutput], fee: int)
@@ -42,17 +43,16 @@ class Wallet:
         Queries the associated FullNode for updated Blocks. Checks
         Transactions on the block to update UTXOs and balance.
     """
-    def __init__(self, node: 'FullNode'):
+    def __init__(self):
         # Generate secret key, public key pair
         keypair = RSA.generate(2048)
 
         self.secret_key = keypair.export_key()
         self.public_key = keypair.publickey().export_key()
         self.balance = 0
-        self.node = node
+        self.node = None
         self.wallet_utxo_set = deque()
-        self.last_block_queried = node.node_blockchain.blocks[0].generate_hash()
-        self.update_wallet()
+        self.last_block_queried = None
 
     def send(self, outputs: List[TXOutput], fee: int):
         # Get the total amount being sent
@@ -110,6 +110,11 @@ class Wallet:
 
         # We have scanned all Blocks not previously seen in the chain. No more to update
         self.last_block_queried = updated_chain[-1].generate_hash()
+
+    def connect_to_network(self, network: 'Network'):
+        self.node = choice(network.nodes)
+        self.last_block_queried = self.node.node_blockchain.blocks[0].generate_hash()
+        self.update_wallet()
 
 
 class FullNode:
@@ -341,8 +346,9 @@ class Network:
 
         self.nodes.append(new_node)
 
-    def add_miner_node(self):
+    def add_miner_node(self, public_key: bytes):
         new_node = MinerNode()
+        new_node.miner_public_key = public_key
         # If there are already nodes in the network, copy their data
         if len(self.nodes) > 0:
             self.copy_network_data(new_node)
