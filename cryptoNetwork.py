@@ -226,6 +226,10 @@ class FullNode:
         if not new_block.has_proof_of_work():
             return False
 
+        # Check the Block's previous hash
+        if new_block.previous_hash != self.node_blockchain.blocks[-1].generate_hash():
+            return False
+
         # Block is valid
         return True
 
@@ -326,40 +330,43 @@ class Network:
         Broadcasts blocks from MinerNodes to FullNodes
     """
     def __init__(self):
-        self.full_nodes = []
-        self.miner_nodes = []
+        self.nodes = []
+        self.miner_indices = []
 
     def add_full_node(self):
         new_node = FullNode()
         # If there are already nodes in the network, copy their data
-        if len(self.full_nodes) > 0:
-            new_node = self.full_nodes[0].copy()
-        self.full_nodes.append(new_node)
+        if len(self.nodes) > 0:
+            self.copy_network_data(new_node)
+
+        self.nodes.append(new_node)
 
     def add_miner_node(self):
         new_node = MinerNode()
         # If there are already nodes in the network, copy their data
-        if len(self.miner_nodes) > 0:
-            new_node.mempool = copy.deepcopy(self.miner_nodes[0].mempool)
-            new_node.utxo_set = copy.deepcopy(self.miner_nodes[0].utxo_set)
-        self.miner_nodes.append(new_node)
+        if len(self.nodes) > 0:
+            self.copy_network_data(new_node)
+
+        self.miner_indices.append(len(self.nodes))
+        self.nodes.append(new_node)
+
+    def copy_network_data(self, new_node):
+        new_node.node_blockchain = self.nodes[0].node_blockchain.copy()
+        new_node.utxo_set = copy.deepcopy(self.nodes[0].utxo_set)
+        new_node.mempool = copy.deepcopy(self.nodes[0].mempool)
 
     def transaction_broadcast(self, broadcaster):
         # For each FullNode, send the node's unvalidated TXs to every
         # MinerNode in the Network to be added to a new Block
-        for full_node in self.full_nodes:
-            full_node.listen_for_transactions(broadcaster.local_txs)
-        for miner_node in self.miner_nodes:
-            miner_node.listen_for_transactions(broadcaster.local_txs)
+        for node in self.nodes:
+            node.listen_for_transactions(broadcaster.local_txs)
 
         broadcaster.local_txs = []
 
     def block_broadcast(self, broadcaster):
         # For each MinerNode, send the node's new Blocks to every
         # FullNode in the Network for confirmation
-        for full_node in self.full_nodes:
-            full_node.listen_for_blocks(broadcaster.new_block)
-        for miner_node in self.miner_nodes:
-            miner_node.listen_for_blocks(broadcaster.new_block)
+        for node in self.nodes:
+            node.listen_for_blocks(broadcaster.new_block)
 
         broadcaster.new_block = None
