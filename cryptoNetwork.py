@@ -145,7 +145,7 @@ class FullNode:
     def listen_for_blocks(self, mined_blocks: List[Block]):
         for block in mined_blocks:
             # If the Block has a proof-of-work, add it to the Blockchain
-            if block.has_proof_of_work:
+            if block.has_proof_of_work() and block.has_valid_transactions():
                 self.node_blockchain.append_block(block)
 
 
