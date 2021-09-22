@@ -35,13 +35,17 @@ class Wallet:
     -------
     __init__()
         Generates a secret key and public key for this Wallet. Initializes
-        the balance, UTXO set, and connects the Wallet to the given FullNode.
+        the balance, and UTXO set. Must call connect_to_network before
+        Wallet methods can be used.
     send(outputs: List[TXOutput], fee: int)
         Sends coin in amounts and locations specified by outputs which
-        is a list of TXOutputs
+        is a list of TXOutputs.
     update_wallet()
         Queries the associated FullNode for updated Blocks. Checks
         Transactions on the block to update UTXOs and balance.
+    connect_to_network(network: Network)
+        Connects the Wallet to a random node in the Network. This node is then
+        responsible for broadcasting Transactions specified by this Wallet.
     """
     def __init__(self):
         # Generate secret key, public key pair
@@ -126,8 +130,15 @@ class FullNode:
     ----------
     node_blockchain : Blockchain
         This node's copy of the Blockchain
-    unvalidated_txs : List[Transaction]
-        List of Transactions to be broadcast to MinerNodes
+    local_txs : List[Transaction]
+        Transactions heard by Wallets connected to this node not yet broadcast
+        to the rest of the Network
+    mempool : List[Transaction]
+        Transactions heard by this node from other nodes on the network.
+        Transactions are validated before being placed in the mempool.
+    utxo_set : Dict[bytes, TXOutput]
+        Maps encodings of Transaction headers and output indices to TXOutputs.
+        Outputs in this set have not been spent.
 
     Methods
     -------
@@ -136,21 +147,33 @@ class FullNode:
     copy(node: FullNode)
         Used to initialize subsequent FullNodes and gives them copies
         of an existing FullNode's Blockchain
-    listen_for_blocks(mined_blocks: List[Block])
-        Verifies transactions and proof-of-work new Blocks confirmed by
-        miners and adds it to the node's blockchain.
+    listen_for_blocks(new_block: Block)
+        Validates the new Block heard from the network and if it is valid adds
+        it to the Blockchain and updates the UTXO set and mempool to reflect
+        confirmation of this Block.
+    validate_block(new_block: Block) -> bool
+        Validates all Transactions in the new Block, checks that the Block has
+        a valid proof-of-work, and checks the Block's previous hash is correct.
+    listen_for_transactions(transactions: List[Transaction])
+        Checks if Transactions heard from the Network are valid and if so adds
+        them to the Node's mempool to await confirmation.
     validate_tx(tx: Transaction) -> bool
         Determines if a Transaction is valid. Checks for double spends,
         over spends, invalid signatures, invalid Transaction data.
+    update_utxo_set(new_block: Block)
+        Given a new valid Block added to this node's Blockchain, checks all
+        Transactions in the Block and removes used inputs from the UTXO set and
+        adds new outputs to the UTXO set.
+    update_mempool(new_block: Block)
+        Given a new valid Block added to this node's Blockchain, checks all
+        Transactions in the Block to see if they are in the node's mempool.
+        If so, these Transactions are removed.
     """
     def __init__(self):
         self.node_blockchain = Blockchain()
         self.local_txs = []
         self.mempool = []
         self.utxo_set = dict()
-
-    def copy(self):
-        return copy.deepcopy(self)
 
     def listen_for_blocks(self, new_block: Block):
         # If the new Block is valid, add it the Blockchain
@@ -159,6 +182,30 @@ class FullNode:
             self.node_blockchain.append_block(new_block)
             self.update_utxo_set(new_block)
             self.update_mempool(new_block)
+
+    def validate_block(self, new_block: Block):
+        # Validate TXs included in the new block (ignore the coinbase TX)
+        for i in range(len(new_block.transactions)-1):
+            tx = new_block.transactions[i]
+            if not self.validate_tx(tx):
+                return False
+
+        # Check that the new block has a valid proof-of-work
+        if not new_block.has_proof_of_work():
+            return False
+
+        # Check the Block's previous hash
+        if new_block.previous_hash != self.node_blockchain.blocks[-1].generate_hash():
+            return False
+
+        # Block is valid
+        return True
+
+    def listen_for_transactions(self, transactions: List[Transaction]):
+        # Add valid transactions to the mempool
+        for tx in transactions:
+            if self.validate_tx(tx):
+                self.mempool.append(tx)
 
     def validate_tx(self, tx: Transaction) -> bool:
         # Verify the TX data has a valid signature
@@ -183,12 +230,6 @@ class FullNode:
             return False
 
         return True
-
-    def listen_for_transactions(self, transactions: List[Transaction]):
-        # Add valid transactions to the mempool
-        for tx in transactions:
-            if self.validate_tx(tx):
-                self.mempool.append(tx)
 
     def update_utxo_set(self, new_block: Block):
         # Inputs used in Block TXs are no longer UTXOs
@@ -220,24 +261,6 @@ class FullNode:
                 if new_tx.get_txid() == tx.get_txid():
                     self.mempool.remove(tx)
 
-    def validate_block(self, new_block: Block):
-        # Validate TXs included in the new block (ignore the coinbase TX)
-        for i in range(len(new_block.transactions)-1):
-            tx = new_block.transactions[i]
-            if not self.validate_tx(tx):
-                return False
-
-        # Check that the new block has a valid proof-of-work
-        if not new_block.has_proof_of_work():
-            return False
-
-        # Check the Block's previous hash
-        if new_block.previous_hash != self.node_blockchain.blocks[-1].generate_hash():
-            return False
-
-        # Block is valid
-        return True
-
 
 class MinerNode(FullNode):
     """
@@ -246,27 +269,22 @@ class MinerNode(FullNode):
     Attributes
     ----------
     miner_public_key : bytes
-        Miner's public key to be used for outputs of coinbase
-        Transactions and fees
-    new_blocks : List[Block]
-        List of Blocks created by the miner to be broadcast back to FullNodes
-        for confirmation
+        Miner's public key to be used for outputs of coinbase Transactions
+        and fees
+    new_block : Block
+        A newly mined Block waiting to be broadcast to the rest of the network
     MinerNode.difficulty : int
-        Number of zeros that must start the header of a Block
-        to be considered valid
+        Number of zeros that a Block header must start with for the Block to be
+        considered as having a valid proof-of-work
 
     Methods
     -------
     __init__(miner_public_key)
-        Initializes the miner_public_key and an empty mempool
-    copy()
-        Return a copy of this node
-    listen_for_transactions(transactions: List[Transactions])
-        Listen for Transactions being broadcast and add them to the mempool
-        to await confirmation
+        Initializes the miner_public_key
     create_new_block()
-        Collect transactions from the mempool and add them to a new Block
-
+        Collect transactions from the mempool and add them to a new Block.
+        Then compute a valid proof-of-work for that Block and set it as
+        the next Block to broadcast.
     """
     difficulty = 2
 
@@ -314,25 +332,29 @@ class Network:
     ...
     Attributes
     ----------
-    full_nodes : List[FullNode]
-        Nodes participating on the network by maintaining the Blockchain
-        and creating transactions
-    miner_nodes : List[MinerNode]
-        Nodes participating on the network by validating transactions,
-        creating new blocks, and providing proof-of-work for new blocks
+    nodes : List
+        List of FullNodes and MinerNodes participating on the Network
+    miner_indices : List[int]
+        List of indices into the nodes list that specified which nodes are
+        MinerNodes.
 
     Methods
     -------
     __init__()
-        Initialize new Network with one FullNode and one MinerNode
+        Initialize a new empty Network
     add_full_node()
-        Creates a new basic node on the network
-    add_miner_node()
-        Creates a new miner node on the network
-    transaction_broadcast()
-        Broadcasts verified transactions from FullNodes to MinerNodes
-    block_broadcast()
-        Broadcasts blocks from MinerNodes to FullNodes
+        Creates a new FullNode on the network
+    add_miner_node(public_key: bytes)
+        Creates a new MinerNode on the network. Sends its block rewards and
+        fees to the specified public key.
+    copy_network_data(new_node)
+        Used on new nodes to copy the Blockchain, UTXO set, and mempools of
+        currently running nodes.
+    transaction_broadcast(broadcaster)
+        Broadcasts Transactions specified by the Wallets connected to the
+        broadcaster node.
+    block_broadcast(broadcaster: MinerNode)
+        Broadcasts the newly mined Block from the specified broadcaster node.
     """
     def __init__(self):
         self.nodes = []

@@ -39,8 +39,9 @@ class Block:
     has_proof_of_work() -> bool
         Checks the Block's hash to see if the number of zeros at the beginning
         of the hash is greater than or equal to the difficulty score
-    has_valid_transactions() -> bool
-        Checks to see if each Transaction in this block is valid
+    print_block()
+        Prints the Block header, time stamp, previous block header, and
+        Transaction data. Formats everything as hex.
 
     """
     def __init__(self, transactions: List[Transaction], difficulty: int):
@@ -103,8 +104,9 @@ class Blockchain:
     copy() -> Blockchain
         Returns a copy of this Blockchain
     append_block(block)
-        Appends a copy of the argument block to the Blockchain. Sets the
-        Block's previous hash to the last Block in the chain.
+        Appends a copy of the argument block to the Blockchain.
+    print_blockchain():
+        Prints each Block in the Blockchain
     """
     def __init__(self):
         # Genesis Block has no Transactions, previous_hash of all 0s
