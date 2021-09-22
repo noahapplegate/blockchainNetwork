@@ -39,6 +39,8 @@ class Block:
     has_proof_of_work() -> bool
         Checks the Block's hash to see if the number of zeros at the beginning
         of the hash is greater than or equal to the difficulty score
+    has_valid_transactions() -> bool
+        Checks to see if each Transaction in this block is valid
 
     """
     def __init__(self, transactions: List[Transaction], difficulty: int):
@@ -63,10 +65,26 @@ class Block:
 
         return block_hash.digest()
 
-    def has_proof_of_work(self):
+    def has_proof_of_work(self) -> bool:
         # Get relevant digits in Block hash as a string
         first_n = self.generate_hash().hex()[:self.difficulty]
         return first_n == '0' * self.difficulty
+
+    def print_block(self):
+        print("Block Header: ", self.generate_hash().hex())
+        print("Time Stamp: ", self.time_stamp)
+        print("Previous Block: ", self.previous_hash.hex())
+        print("Transaction Data:")
+        for tx in self.transactions:
+            print("Transaction ", tx.get_txid().hex())
+            print("Inputs")
+            for txin in tx.inputs:
+                print("Output Index: ", txin.output_ind, "Previous TX: ", txin.prev_tx.hex())
+            print("Outputs")
+            for txout in tx.outputs:
+                print("Amount: ", txout.amount, "Owner of output: ", SHA256.new(txout.owner).hexdigest())
+        print("------------------------------------------------------------")
+        print()
 
 
 class Blockchain:
@@ -90,7 +108,7 @@ class Blockchain:
     """
     def __init__(self):
         # Genesis Block has no Transactions, previous_hash of all 0s
-        genesis_block = Block([])
+        genesis_block = Block([], 2)
         zeros = '0' * 64
         zero_header = bytes.fromhex(zeros)
         genesis_block.previous_hash = zero_header
@@ -100,5 +118,8 @@ class Blockchain:
         return copy.deepcopy(self)
 
     def append_block(self, block: Block):
-        block.previous_hash = self.blocks[-1].generate_hash()
         self.blocks.append(block.copy())
+
+    def print_blockchain(self):
+        for block in self.blocks:
+            block.print_block()
