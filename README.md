@@ -6,14 +6,17 @@ A class simulating a blockchain network based on the Bitcoin network.
     * [FullNode](#FullNode)
     * [MinerNode](#MinerNode)
     * [Network](#Network)
+* [blockchain](#blockchain)
+   * [Block](#Block)
+   * [Blockchain](#Blockchain)
 
-# `cryptoNetwork`
+## `cryptoNetwork`
 
-## `Wallet`
+### `Wallet`
 
 Facilitates the spending and receiving of coins
 
-### Attributes
+#### Attributes
 
     secret_key : bytes
         The Wallet's secret key. Used to sign Transactions sent by this Wallet.
@@ -37,7 +40,7 @@ Facilitates the spending and receiving of coins
         The last Block this Wallet has read in the Blockchain. 
         Used when updating this Wallet as a point to stop reading for new 
         Transactions involving this Wallet.
-### Methods
+#### Methods
     __init__()
         Generates a secret key and public key for this Wallet. Initializes
         the balance, and UTXO set. Must call connect_to_network before
@@ -55,12 +58,12 @@ Facilitates the spending and receiving of coins
         Connects the Wallet to a random node in the Network. This node is then
         responsible for broadcasting Transactions specified by this Wallet.
         
-## `FullNode`
+### `FullNode`
 
 A Node on the network used to validate new Blocks and maintain a record
 of Transactions in a Blockchain
 
-### Attributes
+#### Attributes
 
     node_blockchain : Blockchain
         This node's copy of the Blockchain.
@@ -77,7 +80,7 @@ of Transactions in a Blockchain
         Maps encodings of Transaction headers and output indices to TXOutputs.
         Outputs in this set have not been spent.
         
-### Methods
+#### Methods
     copy(node: FullNode)
         Used to initialize subsequent FullNodes and gives them copies
         of an existing FullNode's Blockchain.
@@ -109,11 +112,11 @@ of Transactions in a Blockchain
         Transactions in the Block to see if they are in the node's mempool.
         If so, these Transactions are removed.
 
-## `MinerNode(FullNode)`
+### `MinerNode(FullNode)`
 
 A Node on the network that creates new blocks and provides proof-of-work.
 
-### Attributes
+#### Attributes
 
     miner_public_key : bytes
         Miner's public key to be used for outputs of coinbase Transactions
@@ -126,7 +129,7 @@ A Node on the network that creates new blocks and provides proof-of-work.
         Number of zeros that a Block header must start with for the Block to be
         considered as having a valid proof-of-work.
         
-### Methods
+#### Methods
 
     __init__(miner_public_key)
         Initializes the miner_public_key.
@@ -136,12 +139,12 @@ A Node on the network that creates new blocks and provides proof-of-work.
         Then compute a valid proof-of-work for that Block and set it as
         the next Block to broadcast.
         
-## `Network`
+### `Network`
 
 Network of FullNodes and MinerNodes that constitute the decentralized
 cryptocurrency network
 
-### Attributes
+#### Attributes
 
     nodes : List
         List of FullNodes and MinerNodes participating on the Network.
@@ -150,7 +153,7 @@ cryptocurrency network
         List of indices into the nodes list that specified which nodes are
         MinerNodes.
         
-### Methods
+#### Methods
 
     add_full_node()
         Creates a new FullNode on the network.
@@ -169,3 +172,69 @@ cryptocurrency network
         
     block_broadcast(broadcaster: MinerNode)
         Broadcasts the newly mined Block from the specified broadcaster node.     
+
+## `blockchain`
+
+### `Block`
+
+Represents a block in the Blockchain.
+
+#### Attributes
+
+    time_stamp : datetime.datetime
+        The time of the Block's creation.
+        
+    transactions : List[Transaction]
+        Transaction data being stored in the Block.
+        
+    previous_hash : bytes
+        Hash of the previous Block in the Blockchain.
+        
+    nonce : int
+        Guessed by miners creating the Block's proof-of-work.
+        
+    difficulty : int
+        Number of zero hex digits that must appear at the beginning of the
+        block header to be considered a valid proof of work.
+        
+#### Methods
+
+    __init__(transactions: List[Transaction])
+        Initializes the Block with a List of Transactions, a timestamp,
+        and a nonce of zero.
+        Meaningful values for the nonce and hash come when the block is mined
+        and for previous_hash when added to the Blockchain.
+        
+    copy() -> Block
+        Returns a copy of this block.
+        
+    generate_hash() -> bytes
+        Creates a unique Block header by hashing the time the block was created
+        along with transaction data, previous hash, and a nonce confirming
+        proof-of-work.
+        
+    has_proof_of_work() -> bool
+        Checks the Block's hash to see if the number of zeros at the beginning
+        of the hash is greater than or equal to the difficulty score.
+        
+    print_block()
+        Prints the Block header, time stamp, previous block header, and
+        Transaction data. Formats everything as hex.
+
+### `Blockchain`
+
+#### Attributes
+
+    blocks : List[Block]
+        The list of Blocks in the Blockchain
+        
+#### Methods
+
+    __init__()
+        Creates a new Blockchain containing only the Genesis Block
+    copy() -> Blockchain
+        Returns a copy of this Blockchain
+    append_block(block)
+        Appends a copy of the argument block to the Blockchain.
+    print_blockchain():
+        Prints each Block in the Blockchain
