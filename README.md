@@ -1,6 +1,12 @@
 # blockchainNetwork
 A class simulating a blockchain network based on the Bitcoin network.
 
+* [cryptoNetwork](#cryptoNetwork)
+    * [Wallet](#Wallet)
+    * [FullNode](#FullNode)
+    * [MinerNode](#MinerNode)
+    * [Network](#Network)
+
 # `cryptoNetwork`
 
 ## `Wallet`
