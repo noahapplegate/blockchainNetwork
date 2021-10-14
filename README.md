@@ -1,7 +1,7 @@
 # blockchainNetwork
 A class simulating a blockchain network based on the Bitcoin network.
 
-# `blockchainNetwork`
+# `cryptoNetwork`
 
 ## `Wallet`
 
@@ -48,3 +48,118 @@ Facilitates the spending and receiving of coins
     connect_to_network(network: Network)
         Connects the Wallet to a random node in the Network. This node is then
         responsible for broadcasting Transactions specified by this Wallet.
+        
+## `FullNode`
+
+A Node on the network used to validate new Blocks and maintain a record
+of Transactions in a Blockchain
+
+### Attributes
+
+    node_blockchain : Blockchain
+        This node's copy of the Blockchain.
+        
+    local_txs : List[Transaction]
+        Transactions heard by Wallets connected to this node not yet broadcast
+        to the rest of the Network
+        
+    mempool : List[Transaction]
+        Transactions heard by this node from other nodes on the network.
+        Transactions are validated before being placed in the mempool.
+        
+    utxo_set : Dict[bytes, TXOutput]
+        Maps encodings of Transaction headers and output indices to TXOutputs.
+        Outputs in this set have not been spent.
+        
+### Methods
+    copy(node: FullNode)
+        Used to initialize subsequent FullNodes and gives them copies
+        of an existing FullNode's Blockchain.
+        
+    listen_for_blocks(new_block: Block)
+        Validates the new Block heard from the network and if it is valid adds
+        it to the Blockchain. Updates the UTXO set and mempool to reflect
+        confirmation of this Block.
+        
+    validate_block(new_block: Block) -> bool
+        Validates all Transactions in the new Block, checks that the Block has
+        a valid proof-of-work, and checks the Block's previous hash is correct.
+        
+    listen_for_transactions(transactions: List[Transaction])
+        Checks if Transactions heard from the Network are valid and if so adds
+        them to the Node's mempool to await confirmation.
+        
+    validate_tx(tx: Transaction) -> bool
+        Determines if a Transaction is valid. Checks for double spends,
+        over spends, invalid signatures, invalid Transaction data.
+        
+    update_utxo_set(new_block: Block)
+        Given a new valid Block added to this node's Blockchain, checks all
+        Transactions in the Block and removes used inputs from the UTXO set and
+        adds new outputs to the UTXO set.
+        
+    update_mempool(new_block: Block)
+        Given a new valid Block added to this node's Blockchain, checks all
+        Transactions in the Block to see if they are in the node's mempool.
+        If so, these Transactions are removed.
+
+## `MinerNode(FullNode)`
+
+A Node on the network that creates new blocks and provides proof-of-work.
+
+### Attributes
+
+    miner_public_key : bytes
+        Miner's public key to be used for outputs of coinbase Transactions
+        and fees.
+        
+    new_block : Block
+        A newly mined Block waiting to be broadcast to the rest of the network.
+        
+    MinerNode.difficulty : int
+        Number of zeros that a Block header must start with for the Block to be
+        considered as having a valid proof-of-work.
+        
+### Methods
+
+    __init__(miner_public_key)
+        Initializes the miner_public_key.
+        
+    create_new_block()
+        Collect transactions from the mempool and add them to a new Block.
+        Then compute a valid proof-of-work for that Block and set it as
+        the next Block to broadcast.
+        
+## `Network`
+
+Network of FullNodes and MinerNodes that constitute the decentralized
+cryptocurrency network
+
+### Attributes
+
+    nodes : List
+        List of FullNodes and MinerNodes participating on the Network.
+        
+    miner_indices : List[int]
+        List of indices into the nodes list that specified which nodes are
+        MinerNodes.
+        
+### Methods
+
+    add_full_node()
+        Creates a new FullNode on the network.
+        
+    add_miner_node(public_key: bytes)
+        Creates a new MinerNode on the network. Sends its block rewards and
+        fees to the specified public key.
+        
+    copy_network_data(new_node)
+        Used on new nodes to copy the Blockchain, UTXO set, and mempools of
+        currently running nodes.
+        
+    transaction_broadcast(broadcaster)
+        Broadcasts Transactions specified by the Wallets connected to the
+        broadcaster node.
+        
+    block_broadcast(broadcaster: MinerNode)
+        Broadcasts the newly mined Block from the specified broadcaster node.     
