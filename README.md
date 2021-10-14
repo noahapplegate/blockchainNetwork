@@ -1,5 +1,6 @@
 # blockchainNetwork
 A class simulating a blockchain network based on the Bitcoin network.
+See driver.py for an example of using cryptoNetwork.Network and cryptoNetork.Wallet to simulate a Blockchain network.
 
 * [cryptoNetwork](#cryptoNetwork)
     * [Wallet](#Wallet)
