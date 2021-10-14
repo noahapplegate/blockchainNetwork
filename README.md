@@ -322,4 +322,4 @@ Input of a coin transaction (where the coin is coming from)
     verify_signature() -> bool
         Verifies the stored signature against the generated Transaction ID to
         ensure Transaction data has not been tampered with since signing.
-
+        
