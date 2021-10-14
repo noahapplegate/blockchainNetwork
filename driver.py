@@ -1,6 +1,4 @@
 from cryptoNetwork import Network, Wallet
-from transaction import TXOutput
-
 
 # Create a Wallet, and a Network
 # Add a FullNode and a MinerNode onto the Network
@@ -30,7 +28,8 @@ wallet2.connect_to_network(test_net)
 # Wallet 1 has 30 coin from mining 3 blocks
 # Have wallet1 send wallet2 17 coin in two transactions with a fee of 2 for the miner
 # Broadcast this transaction to the network
-wallet1.send([TXOutput(12, wallet2.public_key), TXOutput(5, wallet2.public_key)], 2)
+outputs = [(12, wallet2.public_key), (5, wallet2.public_key)]
+wallet1.send(outputs, 2)
 test_net.transaction_broadcast(wallet1.node)
 
 # Add another miner, send rewards to wallet2

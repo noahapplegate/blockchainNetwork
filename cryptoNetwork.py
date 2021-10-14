@@ -37,9 +37,10 @@ class Wallet:
         Generates a secret key and public key for this Wallet. Initializes
         the balance, and UTXO set. Must call connect_to_network before
         Wallet methods can be used.
-    send(outputs: List[TXOutput], fee: int)
+    send(outputs: List[(int, bytes)], fee: int)
         Sends coin in amounts and locations specified by outputs which
-        is a list of TXOutputs.
+        is a list of (amount, public_key) tuples to specify that amount
+        being sent and the recipient.
     update_wallet()
         Queries the associated FullNode for updated Blocks. Checks
         Transactions on the block to update UTXOs and balance.
@@ -58,10 +59,13 @@ class Wallet:
         self.wallet_utxo_set = deque()
         self.last_block_queried = None
 
-    def send(self, outputs: List[TXOutput], fee: int):
+    def send(self, outputs: List, fee: int):
+        # Use the list of outputs to generate a list of TXOutputs
+        tx_outputs = [TXOutput(tup[0], tup[1]) for tup in outputs]
+
         # Get the total amount being sent
         total_out = fee
-        for tx_out in outputs:
+        for tx_out in tx_outputs:
             total_out += tx_out.amount
 
         # Make sure we are not overdrawing and update the balance
@@ -88,10 +92,10 @@ class Wallet:
         # Calculate change and send it to this Wallet
         if total_in > total_out:
             change = TXOutput(total_in - total_out, self.public_key)
-            outputs.append(change)
+            tx_outputs.append(change)
 
         # Create a Transaction, sign it, and send it to the connected FullNode
-        new_tx = Transaction(inputs, outputs)
+        new_tx = Transaction(inputs, tx_outputs)
         new_tx.sign(self.secret_key, self.public_key)
         self.node.local_txs.append(new_tx)
 
