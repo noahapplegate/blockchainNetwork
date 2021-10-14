@@ -9,7 +9,11 @@ A class simulating a blockchain network based on the Bitcoin network.
 * [blockchain](#blockchain)
    * [Block](#Block)
    * [Blockchain](#Blockchain)
-
+* [transaction](#transaction)
+   * [TXOutput](#TXOutput)
+   * [TXInput](#TXInput)
+   * [Transaction](#Transaction)
+  
 ## `cryptoNetwork`
 
 ### `Wallet`
@@ -231,10 +235,90 @@ Represents a block in the Blockchain.
 #### Methods
 
     __init__()
-        Creates a new Blockchain containing only the Genesis Block
+        Creates a new Blockchain containing only the Genesis Block.
+        
     copy() -> Blockchain
-        Returns a copy of this Blockchain
+        Returns a copy of this Blockchain.
+        
     append_block(block)
         Appends a copy of the argument block to the Blockchain.
+        
     print_blockchain():
-        Prints each Block in the Blockchain
+        Prints each Block in the Blockchain.
+
+## `transaction`
+
+### `TXOutput`
+
+Output of a transaction (amount, public key of recipient)
+
+#### Attributes
+
+    prev_tx : bytes
+        ID of the Transaction where the output being spent resides.
+        
+    output_ind : int
+        Index within the specified Transaction of the output being spent.
+        
+#### Methods
+
+    __init__(prev_tx, output_ind)
+        Initializes the TXInput with the previous Transaction header and
+        the index of the output being spent within that Transaction.
+
+### `TXInput`
+
+Input of a coin transaction (where the coin is coming from)
+
+#### Attributes
+
+    prev_tx : bytes
+        ID of the Transaction where the output being spent resides.
+        
+    output_ind : int
+        Index within the specified Transaction of the output being spent.
+        
+#### Methods
+
+    __init__(prev_tx, output_ind)
+        Initializes the TXInput with the previous Transaction header and
+        the index of the output being spent within that Transaction.
+
+### `Transaction`
+
+#### Attributes
+
+    inputs : List[TXInput]
+        UTXOs being spent in the transaction.
+        
+    outputs : List[TXOutput]
+        Describes how the coin is being spent.
+        
+    sender_public_key : bytes
+        Public key of the sender of this transaction. Used to verify
+        the signature on the transaction.
+        
+    signature : bytes
+        Digital signature created using the sender's secret key.
+        
+#### Methods
+
+    __init__(inputs, outputs)
+        Initializes the inputs and outputs of the Transaction.
+        In order for this Transaction to be valid a user must call sign().
+        
+    get_txid() -> bytes
+        Gets the SHA256 of the Transaction data.
+        
+    sign(secret_key, public_key):
+        The sender provides their secret key and public key to sign the
+        Transaction.
+        
+    generate_txid() -> Crypto.Hash.SHA256
+        Generate the Transaction ID for this transaction by hashing Transaction
+        data. Only for use in the verify_signature method.
+        Use get_txid to get the header as bytes.
+        
+    verify_signature() -> bool
+        Verifies the stored signature against the generated Transaction ID to
+        ensure Transaction data has not been tampered with since signing.
