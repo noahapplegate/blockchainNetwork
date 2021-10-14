@@ -1,6 +1,8 @@
 # blockchainNetwork
 A class simulating a blockchain network based on the Bitcoin network.
-See driver.py for an example of using cryptoNetwork.Network and cryptoNetork.Wallet to simulate a Blockchain network.
+
+See driver.py for an example of using cryptoNetwork.Network and cryptoNetork.Wallet
+to simulate a Blockchain network.
 
 * [cryptoNetwork](#cryptoNetwork)
     * [Wallet](#Wallet)
@@ -51,7 +53,7 @@ Facilitates the spending and receiving of coins
         the balance, and UTXO set. Must call connect_to_network before
         other Wallet methods can be used.
         
-    send(outputs: List[TXOutput], fee: int)
+    send(outputs: List[(int, bytes)], fee: int)
         Sends coin in amounts and locations specified by outputs which
         is a list of TXOutputs.
         
